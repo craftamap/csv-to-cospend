@@ -167,10 +167,10 @@ def create_bill(payment: Payment):
         json={
             "amount": payment.amount / 100,
             "what": payment.payee_friendly,
-            "category": config["cospend"]["mapping"].get(payment.category, 0),
+            "category": config["cospend"]["category_mapping"].get(payment.category, 0),
             "comment": payment.reference,
             "payed_for": config["cospend"]["payed_for"],
-            "payer": config["cospend"]["payer"],
+            "payer": int(config["cospend"]["payer"]),
             "paymentmodeid": 0,  # TODO: always use transfer / move to config.toml
             "repeat": "n",
             "timestamp": datetime.datetime.combine(
