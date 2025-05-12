@@ -1,5 +1,6 @@
 import typer
 from typing_extensions import Annotated
+from typing import Optional
 import sys
 import datetime
 import csv
@@ -44,11 +45,16 @@ class Payment:
 
 app = typer.Typer()
 
+def log_info(*args):
+    print(" \033[92m::\033[0m", *args)
+def log_error(*args):
+    print(" \033[91m::\033[0m", *args)
+
 def csv_to_payment(csv_path: Path) -> list[Payment]:
     columns = config["csv"]["columns"]
     payments = []
 
-    with open(sys.argv[1]) as csvfile:
+    with open(csv_path) as csvfile:
         reader = csv.DictReader(csvfile, delimiter=";")
         for row in reader:
             date = datetime.datetime.strptime(row[columns["date"]], "%d.%m.%Y").date()
@@ -75,7 +81,6 @@ def simplify_payment(payment: Payment) -> Payment:
     for rule in config["naming"]["rule"]:
         if not rule.get("payee_contains") is None:
             if rule.get("payee_contains").lower() in payment.payee.lower():
-                print(rule)
                 payment = dataclasses.replace(
                     payment,
                     payee_friendly=rule["result"].get("name", payment.payee),
@@ -83,7 +88,6 @@ def simplify_payment(payment: Payment) -> Payment:
                 )
         if not rule.get("reference_contains") is None:
             if rule.get("reference_contains").lower() in payment.payee.lower():
-                print(rule)
                 payment = dataclasses.replace(
                     payment,
                     payee_friendly=rule["result"].get("name", payment.payee),
@@ -93,14 +97,14 @@ def simplify_payment(payment: Payment) -> Payment:
 
 
 def persist(items: list[Payment], path: str):
-    print("dumping to ", path)
+    log_info("dumping to ", path)
     with open(path, "w") as fh:
         json.dump([x.to_json() for x in items], fh, indent=2)
-    print("done")
+    log_info("done")
 
 
 def classify_payments(
-    payment: Payment,
+    payments: list[Payment],
 ) -> (list[Payment], list[Payment], list[Payment]):
     approved: list[Payment] = []
     second_look: list[Payment] = []
@@ -127,7 +131,7 @@ def classify_payments(
             entered = input()
             if entered == "a":
                 approved.append(payment)
-                print("added to the approved list")
+                log_info("added to the approved list")
                 break
             if entered == "c":
                 print("(g) grocery")
@@ -146,27 +150,31 @@ def classify_payments(
                 with open(path) as tmpF:
                     payment = Payment.from_json(json.load(tmpF))
                 approved.append(payment)
-                print("added to the approved list")
+                log_info("added to the approved list")
                 break
             elif entered == "j":
                 second_look.append(payment)
-                print("added to the second look list")
+                log_info("added to the second look list")
                 break
             elif entered == "x":
                 ignore.append(payment)
-                print("added to the ignore list")
+                log_info("added to the ignore list")
                 break
             elif entered == "q":
                 second_look.extend(items[idx:])
                 print("adding all remaining items to second look list")
                 exit_loop = True
                 break
-    return []
+    return (approved, second_look, ignore)
 
 
 @app.command()
-def classify(csv_path: Annotated[Path, typer.Argument()]):
-    payments = csv_to_payment(csv_path)
+def classify(csv_path: Annotated[Optional[Path], typer.Option()] = None, continue_with: Annotated[Optional[Path], typer.Option()] = None):
+    if not csv_path is None:
+        payments = csv_to_payment(csv_path)
+    elif not continue_with is None:
+        with open(continue_with) as tmpF:
+            payments = list(reversed([Payment.from_json(x) for x in json.load(tmpF)]))
     (approved, second_look, ignore) = classify_payments(payments)
 
     persist(approved, f"{datetime.datetime.now().isoformat()}-approved.json")
