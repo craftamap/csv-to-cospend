@@ -4,7 +4,7 @@ from typing import Optional
 import sys
 import datetime
 import csv
-import toml
+import tomllib
 import json
 import tempfile
 import os
@@ -15,7 +15,8 @@ import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
 
-config = toml.load("config.toml")
+with open("config.toml", "rb") as f:
+    config = tomllib.load(f)
 
 @dataclass
 class Payment:
